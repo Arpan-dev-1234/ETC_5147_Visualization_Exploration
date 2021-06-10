@@ -1,0 +1,340 @@
+---
+title: "5147_Data_wrangling"
+author: "Arpan"
+date: "18/04/2021"
+output: html_document
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      cache=TRUE, 
+                      messages=FALSE, 
+                      warning=FALSE )
+library(tidyverse)
+library(ggmap)
+library(ggthemes)
+library(gridExtra)
+library(forcats)
+# Time zone matching
+library(lubridate)
+library(here)
+library(naniar)
+library(leaflet)
+library(ggplot2)
+library(kableExtra)
+library(janitor)
+library(plotly)
+
+library(countrycode)
+library(readr)
+library(dslabs)
+library(ggplot2)
+library(dplyr)
+library(gapminder)
+library(tidytext)
+library(kableExtra)
+library(tidytuesdayR)
+library(rnaturalearthdata)
+library(gganimate)
+library(viridis)
+library(sf)
+library(RColorBrewer)
+library(rgeos)
+library(gifski)
+library(ggpubr)
+library(rnaturalearth)
+library(gsubfn)
+library(corrplot)
+```
+
+
+```{r}
+supply<- read.csv("Data/DataCoSupplyChainDataset.csv")
+
+
+```
+
+
+
+```{r}
+
+n <- nrow(supply)
+a <- split(supply,rep(1:ceiling(n/90260),each=90260)[1:n])
+a
+
+```
+
+
+
+```{r}
+col_remove<- c("Customer.Email", "Customer.Fname", "Customer.Id", "Customer.Lname", "Customer.Password", "Order.Id", "Order.Item.Cardprod.Id", "Order.Customer.Id", "Late_delivery_risk", "Category.Id", "Product.Image", "Product.Status", "Order.Zipcode", "Product.Card.Id", "Product.Category.Id", "Product.Description")
+
+supply1<- a$`1`%>% mutate(Date=mdy_hm(order.date..DateOrders.))%>% filter(Order.Country  %in% c("Estados Unidos", "Francia", "México", "Alemania", "Brasil", "Australia","Reino Unido", "China", "Italia", "India"))%>%
+  select(- one_of(col_remove))
+dim(supply1)
+
+supply2<- a$`2`%>% mutate(Date=mdy_hm(order.date..DateOrders.))%>%filter(Order.Country  %in% c("Estados Unidos", "Francia", "México", "Alemania", "Brasil", "Australia","Reino Unido", "China", "Italia", "India"))%>%
+  select(- one_of(col_remove))  
+dim(supply2)
+
+supply<- supply%>% mutate(Date=mdy_hm(order.date..DateOrders.))%>% filter(Order.Country  %in% c("Estados Unidos", "Francia", "México", "Alemania", "Brasil", "Australia","Reino Unido", "China", "Italia", "India","Japón","Canada","Bélgica","España","Hong Kong","Vietnam","Chile","Argentina","Dinamarca","Rusia","Singapur"))%>%
+  select(- one_of(col_remove))
+dim(supply)
+
+
+supply<- supply%>% mutate(Order.Country= case_when(Order.Country=="Estados Unidos"~"United States of America",Order.Country=="Francia"~"France",Order.Country=="México"~"Mexico",Order.Country=="Alemania"~"Germany",Order.Country=="Brasil"~"Brazil",Order.Country=="Reino Unido"~"United Kingdom",Order.Country=="Italia"~"Italy",Order.Country=="Japón"~"Japan",Order.Country=="Bélgica"~"Belgium",Order.Country=="España"~"Spain",Order.Country=="Dinamarca"~"Denmark", Order.Country=="Rusia"~"Russia", Order.Country=="Singapur"~"Singapore", Order.Country=="India"~"India",Order.Country=="Argentina"~"Argentina",Order.Country=="Chile"~"Chile",Order.Country=="China"~"China",Order.Country=="Australia"~"Australia",Order.Country=="Hong Kong"~"Hong Kong",Order.Country=="Vietnam"~"Vietnam",Order.Country=="Canada"~"Canada"))
+
+```
+
+
+```{r}
+write.csv(supply1,file = "supply1.csv", row.names = F)
+
+write.csv(supply2,file = "supply2.csv", row.names = F)
+
+write.csv(supply,file = "supply.csv", row.names = F)
+
+
+```
+
+
+```{r}
+supply1 %>% 
+   summarise(m1 = min(Product.Price, na.rm=TRUE), 
+                 m2 = max(Product.Price, na.rm=TRUE), 
+                 m3 = median(Product.Price, na.rm=TRUE, 
+                             m4= mean(supply1$Product.Price)))%>%kbl(caption = "Table.1",table.attr="style='width:70%;'") %>%
+  kable_paper("hover",full_width = T,html_font = "Cambria", position= "left" )
+```
+```{r}
+
+
+
+ggplot(supply1, aes(x = supply1$Order.Country , y = Product.Price)) + 
+  geom_point() + 
+  geom_vline(xintercept = 122.106, color = "red") +
+
+  labs(y = "Country")
+```
+
+
+```{r}
+x1<- supply1%>%group_by(Order.Country,Shipping.Mode)%>% summarise(total_price=sum( Product.Price, na.rm = T), total_benefit= sum(Benefit.per.order,na.rm = T))%>% arrange(- total_price )%>% head(n=40)
+
+x1
+  
+  
+  
+ 
+
+
+
+```
+
+
+
+```{r}
+
+ggplot(x1,aes(x=   reorder(Order.Country,total_price), y= total_price, fill= x1$Shipping.Mode ))+
+  geom_bar(stat = "identity")
+
+```
+
+
+```{r}
+
+dd<-ggplot(x1,aes(x=   reorder(Order.Country,total_price), y= total_price, fill= x1$Shipping.Mode ))+
+  geom_bar(stat = "identity")
+ggplotly(dd)
+```
+
+```{r}
+ggplot(x1,aes(x= total_price ))+ geom_density()
+
+```
+
+
+
+
+```{r}
+ggplot(x1,aes(x=total_benefit, color= Shipping.Mode 
+, fill= Shipping.Mode ))+
+  geom_density(alpha=0.3, size=1)+
+  scale_x_log10()
+```
+
+
+
+
+```{r}
+supply1<- mutate(supply1, profit_loss= ifelse(supply1$Benefit.per.order<0,"Loss","Profit"))
+```
+
+
+
+```{r}
+miss_var_summary(supply1)
+
+```
+
+
+```{r}
+pal= colorFactor(palette = c("yellow", "red", "Green","blue","purple"), domain = supply1$Shipping.Mode )
+
+leaflet(data = supply1, width =800, height = 300)%>% addTiles() %>%
+      addCircles(~supply1$Longitude, ~supply1$Latitude, color = ~pal(supply1$Shipping.Mode))
+```
+
+```{r}
+ggplot(supply1, aes(x=as.factor(year(supply1$`mdy_hm(order.date..DateOrders.)`)), y= log10( Benefit.per.order)))+
+  geom_boxplot()
+
+```
+
+
+
+
+
+```{r}
+ggplot(supply1, aes(x=as.factor(supply1$Order.Country), y= log10( Benefit.per.order)))+
+  geom_boxplot()
+```
+
+
+
+
+```{r}
+
+
+supply1 %>% mutate(delay_in_shipment=  supply1$Days.for.shipping..real.- supply1$Days.for.shipment..scheduled.)%>% group_by(Order.Country) %>%
+   summarise(m1 = min(delay_in_shipment, na.rm=TRUE), 
+                 m2 = max(delay_in_shipment, na.rm=TRUE), 
+                 m3 = median(delay_in_shipment, na.rm=TRUE))%>%kbl(caption = "Table", table.attr="style='width:70%;'") %>%
+  kable_paper("hover",full_width = T,html_font = "Cambria", position= "left" )
+```
+```{r}
+supply<-read_csv("supply.csv")
+```
+```{r}
+Urban_pop<- read_csv("Urban_Population.csv",skip = 4, col_names = T)
+
+Urban_pop<- pivot_longer(Urban_pop, cols = c( "2015"),
+             names_to = "Year",
+             values_to = "Urban_Population") %>%
+  mutate(Year = as.integer(Year))%>%
+  select("Country Name", "Urban_Population" )
+Urban_pop<- clean_names(Urban_pop)
+
+supply$country_name<- supply$Order.Country
+
+
+supply<-left_join(supply,Urban_pop, by= c("country_name"))
+
+
+
+```
+
+
+
+```{r}
+library(countrycode)
+supply$continent <- countrycode(sourcevar = supply$Order.Country,
+                            origin = "country.name",
+                            destination = "continent")
+
+
+supply$Date<- mdy(supply$shipping.date..DateOrders.)
+
+supply$Year<- year(supply$Date)
+
+supply$Month<- month(supply$Date)
+
+```
+
+
+```{r}
+
+df2<-supply%>%select(Benefit.per.order,continent,Month,Order.Item.Product.Price,Year,urban_population,country_name)%>%group_by(Month,continent,country_name)%>%summarise(avg_benefit= mean(Benefit.per.order,na.rm=T), avg_price= mean(Order.Item.Product.Price), avg_urban_population= mean(urban_population, na.rm=T))
+
+gg <- ggplot(df2, aes(avg_benefit,avg_price, color = continent, text=country_name)) +
+  geom_point(aes(size = avg_urban_population, frame = Month)) +labs(x="Benefit", y="Product_price")
+ggplotly(gg)
+```
+
+
+
+
+```{r}
+sc<- supply1%>%select(Benefit.per.order,Sales,continent,country_name)%>%
+  group_by(country_name)
+```
+
+```{r}
+
+df1<-supply1%>%select(Benefit.per.order,continent,Month,Order.Item.Product.Price,Year,urban_population)%>%group_by(Year,continent)%>%summarise(avg_benefit= mean(Benefit.per.order,na.rm=T), avg_price= mean(Order.Item.Product.Price), avg_urban_population= mean(urban_population, na.rm=T)) 
+
+
+gg<-ggplot(df1,aes(avg_price,avg_benefit, color = continent))+
+  geom_point(aes( frame = Year, size= avg_urban_population))
+ggplotly(gg)
+```
+
+```{r}
+library(ggplot2)
+library(gganimate)
+library(babynames)
+library(hrbrthemes)
+
+df3<-supply%>%select(Benefit.per.order,continent,Month,Order.Item.Product.Price,Year,urban_population)%>%group_by(Month,continent)%>%summarise(avg_benefit= mean(Benefit.per.order,na.rm=T), avg_price= mean(Order.Item.Product.Price), avg_urban_population= mean(urban_population, na.rm=T)) 
+
+
+df3 %>%
+  ggplot( aes(x=Month, y=avg_benefit, group=continent, color=continent)) +
+    geom_line(aes(size= 0.5)) +
+    geom_point(aes(size= 0.7)) +
+    ggtitle("Continents general profit") +
+    scale_color_viridis_d()+
+    theme_ipsum() +
+    ylab("avg_benefit") +
+    transition_reveal(Month)
+
+
+```
+
+```{r}
+df4<-supply%>%select(Benefit.per.order,continent,Month,Order.Item.Product.Price,Year,urban_population,country_name,Year)%>%group_by(Year,continent,country_name)%>%summarise(Tot_benefit= sum(Benefit.per.order,na.rm=T), avg_price= mean(Order.Item.Product.Price), avg_urban_population= mean(urban_population, na.rm=T)) 
+
+countries <- ne_countries(returnclass = "sf", scale = "medium")
+Jointable <- ne_countries(returnclass = "sf", scale = "medium") %>% 
+  select(sovereignt) %>% 
+  right_join(df4, by = c("sovereignt" = "country_name"))
+
+emp_map  <- ggplot()+
+  geom_sf(data = countries, fill = NA)+
+  geom_sf(data = Jointable ,
+          mapping = aes(fill = Tot_benefit))+
+  scale_fill_viridis()+
+  labs(title = "Global change in total benefit",
+       subtitle = "Year: {current_frame}",
+       fill = "Total Benefit")+
+  transition_manual(Year) 
+
+final_map <- animate(emp_map, duration = 10, fps = 5, width = 1000, height = 500, renderer = gifski_renderer())
+
+final_map
+
+```
+```{r}
+df5<-supply%>%select(Benefit.per.order,continent,Month,Order.Item.Product.Price,Year,urban_population,country_name,Year,Category.Name,Order.Region,Department.Name)%>%group_by(Year,continent,country_name,Category.Name,Department.Name,Order.Region)%>%summarise(Tot_benefit= sum(Benefit.per.order,na.rm=T), avg_price= mean(Order.Item.Product.Price), avg_urban_population= mean(urban_population, na.rm=T)) 
+
+dd<-ggplot(df5,aes(x= Year, y= Tot_benefit,group=Department.Name, fill= Department.Name ))+
+  geom_bar(stat = "identity")+
+  facet_wrap(~ Order.Region)+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+  
+ggplotly(dd)
+
+```
+
